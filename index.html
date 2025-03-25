@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Terveim App</title>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+  <style>
+    :root {
+      --bg-color: #ffffff;
+      --text-color: #000000;
+      --border-color: #ccc;
+    }
+    body.dark-mode {
+      --bg-color: #1e1e1e;
+      --text-color: #eaeaea;
+      --border-color: #555;
+    }
+    body {
+      font-family: sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      max-width: 700px;
+      margin: 2rem auto;
+      padding: 1rem;
+      transition: background-color 0.3s, color 0.3s;
+    }
+    h1 {
+      text-align: center;
+    }
+    .controls, .tools, #authBox {
+      background-color: rgba(255,255,255,0.05);
+      padding: 1rem;
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      margin-top: 1rem;
+    }
+    select, input[type="text"], textarea {
+      width: 100%;
+      padding: 0.5rem;
+      margin-top: 0.5rem;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      background-color: var(--bg-color);
+      color: var(--text-color);
+    }
+    button {
+      padding: 0.5rem 1rem;
+      margin-top: 0.5rem;
+      border-radius: 8px;
+      border: none;
+      background-color: #007bff;
+      color: white;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    .description-box {
+      margin-top: 1rem;
+      padding: 0.5rem;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+    }
+  </style>
+</head>
+<body>
+  <h1>✍️ Terveim App</h1>
+  <div id="authBox">
+    <span id="userInfo"></span>
+    <button id="loginBtn" onclick="signIn()">🔐 Bejelentkezés Google-lel</button>
+    <button id="logoutBtn" onclick="signOut()" style="display:none">🚪 Kijelentkezés</button>
+    <button onclick="toggleDarkMode()">🌓 Dark mód váltás</button>
+  </div>
+
+  <div class="controls">
+    <label for="planSelector">📂 Válaszd ki a terved:</label>
+    <select id="planSelector" onchange="showSelectedPlan()">
+      <option value="">-- Válassz tervet --</option>
+    </select>
+    <div id="selectedPlanDetails" class="description-box" style="display:none"></div>
+  </div>
+
+  <div class="tools">
+    <h3>🔄 Export / Import</h3>
+    <button onclick="exportPlans()">⭳ Exportálás (vágólapra)</button>
+    <textarea id="importArea" placeholder="Ide illeszd be a JSON adatot..."></textarea>
+    <button onclick="importPlans()">♻ Importálás</button>
+  </div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyCui4QWMoJMP7pdNZSwCOVcsP3WZi8GpLQ",
+      authDomain: "terveimapp.firebaseapp.com",
+      projectId: "terveimapp",
+      appId: "1:585882742493:web:ae38a2d8967ce89d9d7534"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+    let currentUser = null;
+
+    // Betöltéskor ellenőrizzük a sötét módot
+    if (localStorage.getItem("dark-mode") === "true") {
+      document.body.classList.add("dark-mode");
+    }
+
+    function toggleDarkMode() {
+      document.body.classList.toggle("dark-mode");
+      localStorage.setItem("dark-mode", document.body.classList.contains("dark-mode"));
+    }
+
+    auth.onAuthStateChanged(async user => {
+      const userInfo = document.getElementById("userInfo");
+      const loginBtn = document.getElementById("loginBtn");
+      const logoutBtn = document.getElementById("logoutBtn");
+
+      if (user) {
+        currentUser = user;
+        userInfo.textContent = `👤 ${user.displayName}`;
+        loginBtn.style.display = "none";
+        logoutBtn.style.display = "inline-block";
+
+        const doc = await db.collection("users").doc(user.uid).get();
+        const plans = doc.exists ? doc.data().plans || [] : [];
+        localStorage.setItem("plans", JSON.stringify(plans));
+        populateSelector(plans);
+      } else {
+        currentUser = null;
+        userInfo.textContent = "Nem vagy bejelentkezve.";
+        loginBtn.style.display = "inline-block";
+        logoutBtn.style.display = "none";
+        localStorage.setItem("plans", "[]");
+        populateSelector([]);
+      }
+    });
+
+    function signIn() {
+      const provider = new firebase.auth.GoogleAuthProvider();
+      auth.signInWithPopup(provider).catch(console.error);
+    }
+
+    function signOut() {
+      auth.signOut();
+    }
+
+    function populateSelector(plans) {
+      const selector = document.getElementById("planSelector");
+      selector.innerHTML = '<option value="">-- Válassz tervet --</option>';
+      plans.forEach((plan, index) => {
+        const opt = document.createElement("option");
+        opt.value = index;
+        opt.textContent = plan.name || `Terv ${index + 1}`;
+        selector.appendChild(opt);
+      });
+      document.getElementById("selectedPlanDetails").style.display = "none";
+    }
+
+    function showSelectedPlan() {
+      const plans = JSON.parse(localStorage.getItem("plans") || "[]");
+      const selector = document.getElementById("planSelector");
+      const details = document.getElementById("selectedPlanDetails");
+      const index = selector.value;
+      if (index === "") {
+        details.style.display = "none";
+        return;
+      }
+      const plan = plans[index];
+      details.innerHTML = `<strong>Állapot:</strong> ${plan.status || "-"}<br><strong>Leírás:</strong><br>${plan.description || "-"}`;
+      details.style.display = "block";
+    }
+
+    function exportPlans() {
+      const plans = localStorage.getItem("plans") || "[]";
+      navigator.clipboard.writeText(plans).then(() => alert("✅ Exportálva a vágólapra!"));
+    }
+
+    function importPlans() {
+      try {
+        const input = document.getElementById("importArea");
+        const imported = JSON.parse(input.value);
+        if (Array.isArray(imported)) {
+          localStorage.setItem("plans", JSON.stringify(imported));
+          if (currentUser) {
+            db.collection("users").doc(currentUser.uid).set({ plans: imported });
+          }
+          input.value = "";
+          populateSelector(imported);
+          alert("✅ Importálás sikeres!");
+        } else {
+          alert("⚠ Hibás formátum!");
+        }
+      } catch (e) {
+        alert("❌ Hibás JSON formátum!");
+      }
+    }
+  </script>
+</body>
+</html>
