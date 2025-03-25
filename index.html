@@ -3,91 +3,141 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Terveim App</title>
+  <title>PlanTrackr</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter&display=swap" rel="stylesheet" />
   <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-storage-compat.js"></script>
   <style>
     :root {
-      --bg-color: #ffffff;
-      --text-color: #000000;
-      --border-color: #ccc;
+      --bg: #ffffff;
+      --text: #000000;
+      --accent: #007bff;
+      --border: #ccc;
     }
-    body.dark-mode {
-      --bg-color: #1e1e1e;
-      --text-color: #eaeaea;
-      --border-color: #555;
+    body.dark {
+      --bg: #1e1e1e;
+      --text: #eaeaea;
+      --accent: #3399ff;
+      --border: #444;
     }
+
+    * {
+      box-sizing: border-box;
+    }
+
     body {
-      font-family: sans-serif;
-      background-color: var(--bg-color);
-      color: var(--text-color);
-      max-width: 700px;
-      margin: 2rem auto;
+      margin: 0;
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .sidebar {
+      width: 220px;
+      background: var(--bg);
+      border-right: 1px solid var(--border);
       padding: 1rem;
-      transition: background-color 0.3s, color 0.3s;
+      overflow-y: auto;
     }
-    h1 {
-      text-align: center;
+
+    .main {
+      flex: 1;
+      padding: 1.5rem;
+      overflow-y: auto;
     }
-    .controls, .tools, #authBox {
-      background-color: rgba(255,255,255,0.05);
-      padding: 1rem;
-      border: 1px solid var(--border-color);
-      border-radius: 10px;
-      margin-top: 1rem;
-    }
-    select, input[type="text"], textarea {
-      width: 100%;
+
+    .plan-item {
       padding: 0.5rem;
-      margin-top: 0.5rem;
+      border: 1px solid var(--border);
       border-radius: 8px;
-      border: 1px solid var(--border-color);
-      background-color: var(--bg-color);
-      color: var(--text-color);
-    }
-    button {
-      padding: 0.5rem 1rem;
-      margin-top: 0.5rem;
-      border-radius: 8px;
-      border: none;
-      background-color: #007bff;
-      color: white;
+      margin-bottom: 0.5rem;
       cursor: pointer;
     }
-    button:hover {
-      background-color: #0056b3;
+
+    .plan-item:hover {
+      background: var(--accent);
+      color: white;
     }
-    .description-box {
-      margin-top: 1rem;
+
+    .topbar {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 220px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
       padding: 0.5rem;
-      border: 1px solid var(--border-color);
+    }
+
+    .topbar button {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 1.3rem;
+      margin: 0.3rem 0;
+    }
+
+    .details {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border);
       border-radius: 8px;
+      padding: 1rem;
+    }
+
+    input, textarea {
+      width: 100%;
+      padding: 0.5rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--bg);
+      color: var(--text);
+      margin-top: 0.5rem;
+    }
+
+    button.upload-btn {
+      margin-top: 1rem;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+    }
+
+    button.upload-btn:hover {
+      background: #0056b3;
+    }
+
+    .logo {
+      font-size: 1.2rem;
+      font-weight: bold;
+      margin-top: 2rem;
     }
   </style>
 </head>
 <body>
-  <h1>✍️ Terveim App</h1>
-  <div id="authBox">
-    <span id="userInfo"></span>
-    <button id="loginBtn" onclick="signIn()">🔐 Bejelentkezés Google-lel</button>
-    <button id="logoutBtn" onclick="signOut()" style="display:none">🚪 Kijelentkezés</button>
-    <button onclick="toggleDarkMode()">🌓 Dark mód váltás</button>
+  <div class="sidebar">
+    <div class="topbar">
+      <button onclick="toggleDarkMode()" title="Dark / Light mód váltás">🌓</button>
+      <button onclick="signIn()" id="loginBtn">🔐</button>
+      <button onclick="signOut()" id="logoutBtn" style="display:none;">🚪</button>
+      <div class="logo">PlanTrackr</div>
+    </div>
+    <hr>
+    <div id="planList"></div>
   </div>
 
-  <div class="controls">
-    <label for="planSelector">📂 Válaszd ki a terved:</label>
-    <select id="planSelector" onchange="showSelectedPlan()">
-      <option value="">-- Válassz tervet --</option>
-    </select>
-    <div id="selectedPlanDetails" class="description-box" style="display:none"></div>
-  </div>
-
-  <div class="tools">
-    <h3>🔄 Export / Import</h3>
-    <button onclick="exportPlans()">⭳ Exportálás (vágólapra)</button>
-    <textarea id="importArea" placeholder="Ide illeszd be a JSON adatot..."></textarea>
-    <button onclick="importPlans()">♻ Importálás</button>
+  <div class="main">
+    <h2>📄 Terv részletek</h2>
+    <div id="planDetails" class="details">Nincs kiválasztott terv.</div>
+    <input type="file" id="fileInput" />
+    <button class="upload-btn" onclick="uploadFile()">📎 Fájl feltöltése</button>
   </div>
 
   <script>
@@ -95,48 +145,27 @@
       apiKey: "AIzaSyCui4QWMoJMP7pdNZSwCOVcsP3WZi8GpLQ",
       authDomain: "terveimapp.firebaseapp.com",
       projectId: "terveimapp",
+      storageBucket: "terveimapp.appspot.com",
       appId: "1:585882742493:web:ae38a2d8967ce89d9d7534"
     };
 
     firebase.initializeApp(firebaseConfig);
     const auth = firebase.auth();
     const db = firebase.firestore();
-    let currentUser = null;
+    const storage = firebase.storage();
 
-    // Betöltéskor ellenőrizzük a sötét módot
-    if (localStorage.getItem("dark-mode") === "true") {
-      document.body.classList.add("dark-mode");
+    let currentUser = null;
+    let currentPlans = [];
+    let currentPlanIndex = null;
+
+    if (localStorage.getItem("theme") === "dark") {
+      document.body.classList.add("dark");
     }
 
     function toggleDarkMode() {
-      document.body.classList.toggle("dark-mode");
-      localStorage.setItem("dark-mode", document.body.classList.contains("dark-mode"));
+      document.body.classList.toggle("dark");
+      localStorage.setItem("theme", document.body.classList.contains("dark") ? "dark" : "light");
     }
-
-    auth.onAuthStateChanged(async user => {
-      const userInfo = document.getElementById("userInfo");
-      const loginBtn = document.getElementById("loginBtn");
-      const logoutBtn = document.getElementById("logoutBtn");
-
-      if (user) {
-        currentUser = user;
-        userInfo.textContent = `👤 ${user.displayName}`;
-        loginBtn.style.display = "none";
-        logoutBtn.style.display = "inline-block";
-
-        const doc = await db.collection("users").doc(user.uid).get();
-        const plans = doc.exists ? doc.data().plans || [] : [];
-        localStorage.setItem("plans", JSON.stringify(plans));
-        populateSelector(plans);
-      } else {
-        currentUser = null;
-        userInfo.textContent = "Nem vagy bejelentkezve.";
-        loginBtn.style.display = "inline-block";
-        logoutBtn.style.display = "none";
-        localStorage.setItem("plans", "[]");
-        populateSelector([]);
-      }
-    });
 
     function signIn() {
       const provider = new firebase.auth.GoogleAuthProvider();
@@ -147,55 +176,60 @@
       auth.signOut();
     }
 
-    function populateSelector(plans) {
-      const selector = document.getElementById("planSelector");
-      selector.innerHTML = '<option value="">-- Válassz tervet --</option>';
+    auth.onAuthStateChanged(async user => {
+      if (user) {
+        currentUser = user;
+        document.getElementById("loginBtn").style.display = "none";
+        document.getElementById("logoutBtn").style.display = "inline-block";
+
+        const doc = await db.collection("users").doc(user.uid).get();
+        const plans = doc.exists ? doc.data().plans || [] : [];
+        currentPlans = plans;
+        renderPlanList(plans);
+      } else {
+        currentUser = null;
+        document.getElementById("loginBtn").style.display = "inline-block";
+        document.getElementById("logoutBtn").style.display = "none";
+        currentPlans = [];
+        renderPlanList([]);
+      }
+    });
+
+    function renderPlanList(plans) {
+      const container = document.getElementById("planList");
+      container.innerHTML = "";
       plans.forEach((plan, index) => {
-        const opt = document.createElement("option");
-        opt.value = index;
-        opt.textContent = plan.name || `Terv ${index + 1}`;
-        selector.appendChild(opt);
+        const div = document.createElement("div");
+        div.className = "plan-item";
+        div.textContent = plan.name || `Terv ${index + 1}`;
+        div.onclick = () => showPlan(index);
+        container.appendChild(div);
       });
-      document.getElementById("selectedPlanDetails").style.display = "none";
     }
 
-    function showSelectedPlan() {
-      const plans = JSON.parse(localStorage.getItem("plans") || "[]");
-      const selector = document.getElementById("planSelector");
-      const details = document.getElementById("selectedPlanDetails");
-      const index = selector.value;
-      if (index === "") {
-        details.style.display = "none";
+    function showPlan(index) {
+      const plan = currentPlans[index];
+      currentPlanIndex = index;
+      document.getElementById("planDetails").innerHTML = `
+        <strong>Név:</strong> ${plan.name || "-"}<br>
+        <strong>Állapot:</strong> ${plan.status || "-"}<br>
+        <strong>Leírás:</strong><br>${plan.description || "-"}
+      `;
+    }
+
+    function uploadFile() {
+      const file = document.getElementById("fileInput").files[0];
+      if (!file || currentUser === null || currentPlanIndex === null) {
+        alert("Kérlek válassz ki egy tervet és egy fájlt!");
         return;
       }
-      const plan = plans[index];
-      details.innerHTML = `<strong>Állapot:</strong> ${plan.status || "-"}<br><strong>Leírás:</strong><br>${plan.description || "-"}`;
-      details.style.display = "block";
-    }
 
-    function exportPlans() {
-      const plans = localStorage.getItem("plans") || "[]";
-      navigator.clipboard.writeText(plans).then(() => alert("✅ Exportálva a vágólapra!"));
-    }
-
-    function importPlans() {
-      try {
-        const input = document.getElementById("importArea");
-        const imported = JSON.parse(input.value);
-        if (Array.isArray(imported)) {
-          localStorage.setItem("plans", JSON.stringify(imported));
-          if (currentUser) {
-            db.collection("users").doc(currentUser.uid).set({ plans: imported });
-          }
-          input.value = "";
-          populateSelector(imported);
-          alert("✅ Importálás sikeres!");
-        } else {
-          alert("⚠ Hibás formátum!");
-        }
-      } catch (e) {
-        alert("❌ Hibás JSON formátum!");
-      }
+      const ref = storage.ref().child(`uploads/${currentUser.uid}/${Date.now()}_${file.name}`);
+      ref.put(file).then(snapshot => {
+        alert("✅ Fájl feltöltve!");
+      }).catch(err => {
+        alert("❌ Hiba történt: " + err.message);
+      });
     }
   </script>
 </body>
